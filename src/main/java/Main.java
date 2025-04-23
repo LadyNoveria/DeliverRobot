@@ -10,29 +10,51 @@ public class Main {
 
     public static void main(String[] args) {
 
-        new Thread(() -> {
-            for (int i = 0; i < 1000; i++) {
-                synchronized (sizeToFreq) {
-                    String route = generateRoute("RLRFR", 50);
-                    calculateFrequencyAndQuantity(route);
-                }
-            }
-            sizeToFreq.notify();
-        }).start();
 
-        new Thread(() -> {
-            synchronized (sizeToFreq) {
-                if (sizeToFreq.isEmpty()) {
+        Thread frequencyLeader = new Thread(() -> {
+            while (!Thread.interrupted()) {
+                synchronized (sizeToFreq) {
                     try {
                         sizeToFreq.wait();
                     } catch (InterruptedException e) {
-                        e.printStackTrace();
+                        throw new RuntimeException(e);
                     }
+                    int quantity = 0;
+                    int frequency = 0;
+                    for (Map.Entry<Integer, Integer> pair : sizeToFreq.entrySet()) {
+                        if (pair.getValue() > quantity) {
+                            quantity = pair.getValue();
+                            frequency = pair.getKey();
+                        }
+                    }
+                    System.out.println("Лидер среди частот " + frequency + " (встретилось " + quantity + " раз)");
                 }
-                System.out.println("Самое частое количество повторений " + maxFrequency + " (встретилось " + maxQuantity + " раз)");
-                System.out.println("Другие размеры:");
-                for (Map.Entry<Integer, Integer> pair : sizeToFreq.entrySet()) {
-                    System.out.println("- " + pair.getKey() + " (" + pair.getValue() + " раз)");
+            }
+        });
+        frequencyLeader.start();
+
+        new Thread(() -> {
+            for (int i = 0; i < 100; i++) {
+                synchronized (sizeToFreq) {
+                    String route = generateRoute("RLRFR", 50);
+                    calculateFrequencyAndQuantity(route);
+                    sizeToFreq.notify();
+                }
+            }
+            frequencyLeader.interrupt();
+            System.out.println("Самое частое количество повторений " + maxFrequency + " (встретилось " + maxQuantity + " раз)");
+            System.out.println("Другие размеры:");
+            for (Map.Entry<Integer, Integer> pair : sizeToFreq.entrySet()) {
+                System.out.println("- " + pair.getKey() + " (" + pair.getValue() + " раз)");
+            }
+        }).start();
+
+        new Thread(() -> {
+            for (int i = 0; i < 100; i++) {
+                synchronized (sizeToFreq) {
+                    String route = generateRoute("RLRFR", 50);
+                    calculateFrequencyAndQuantity(route);
+                    sizeToFreq.notify();
                 }
             }
         }).start();
