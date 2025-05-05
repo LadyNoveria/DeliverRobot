@@ -19,10 +19,7 @@ public class Main {
         for (int i = 0; i < 1000; i++) {
             Thread thread = new Thread(() -> {
                 String route = generateRoute("RLRFR", 100);
-                synchronized (sizeToFreq) {
-                    calculateFrequencyAndQuantity(route);
-                    sizeToFreq.notify();
-                }
+                calculateFrequencyAndQuantity(route);
             });
             threadList.add(thread);
             thread.start();
@@ -71,16 +68,20 @@ public class Main {
                 count++;
             }
         }
-        if (count == 0) {
-            sizeToFreq.put(1, count);
-        } else {
-            double frequencyR = ((double) count / route.length() * 100);
-            int frequency = (int) frequencyR;
-            sizeToFreq.put(frequency, count);
-            if (count > maxQuantity) {
-                maxQuantity = count;
-                maxFrequency = frequency;
+        int frequency = 0;
+        synchronized (sizeToFreq) {
+            if (count == 0) {
+                sizeToFreq.put(1, count);
+            } else {
+                double frequencyR = ((double) count / route.length() * 100);
+                frequency = (int) frequencyR;
+                sizeToFreq.put(frequency, count);
+                sizeToFreq.notify();
             }
+        }
+        if (count > maxQuantity) {
+            maxQuantity = count;
+            maxFrequency = frequency;
         }
     }
 
