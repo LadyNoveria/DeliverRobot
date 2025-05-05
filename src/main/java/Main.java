@@ -1,4 +1,6 @@
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 
@@ -8,34 +10,54 @@ public class Main {
     public static int maxQuantity = 0;
     public static int maxFrequency = 0;
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws InterruptedException {
 
-        new Thread(() -> {
-            for (int i = 0; i < 1000; i++) {
+        Thread frequencyLeader = new Thread(getLogic());
+        frequencyLeader.start();
+
+        List<Thread> threadList = new ArrayList<>();
+        for (int i = 0; i < 1000; i++) {
+            Thread thread = new Thread(() -> {
+                String route = generateRoute("RLRFR", 100);
+                calculateFrequencyAndQuantity(route);
+            });
+            threadList.add(thread);
+            thread.start();
+        }
+
+        for (Thread thread : threadList) {
+            thread.join();
+        }
+
+        frequencyLeader.interrupt();
+        System.out.println("Most frequent number of repetitions " + maxFrequency + " (met " + maxQuantity + " times)");
+        System.out.println("Other sizes:");
+        for (Map.Entry<Integer, Integer> pair : sizeToFreq.entrySet()) {
+            System.out.println("- " + pair.getKey() + " (" + pair.getValue() + " times)");
+        }
+    }
+
+    private static Runnable getLogic() {
+        return () -> {
+            while (!Thread.interrupted()) {
                 synchronized (sizeToFreq) {
-                    String route = generateRoute("RLRFR", 50);
-                    calculateFrequencyAndQuantity(route);
-                }
-            }
-            sizeToFreq.notify();
-        }).start();
-
-        new Thread(() -> {
-            synchronized (sizeToFreq) {
-                if (sizeToFreq.isEmpty()) {
                     try {
                         sizeToFreq.wait();
                     } catch (InterruptedException e) {
-                        e.printStackTrace();
+                        throw new RuntimeException(e);
                     }
-                }
-                System.out.println("Самое частое количество повторений " + maxFrequency + " (встретилось " + maxQuantity + " раз)");
-                System.out.println("Другие размеры:");
-                for (Map.Entry<Integer, Integer> pair : sizeToFreq.entrySet()) {
-                    System.out.println("- " + pair.getKey() + " (" + pair.getValue() + " раз)");
+                    int quantity = 0;
+                    int frequency = 0;
+                    for (Map.Entry<Integer, Integer> pair : sizeToFreq.entrySet()) {
+                        if (pair.getValue() > quantity) {
+                            quantity = pair.getValue();
+                            frequency = pair.getKey();
+                        }
+                    }
+                    System.out.println("Leader among frequencies " + frequency + " (met " + quantity + " times)");
                 }
             }
-        }).start();
+        };
     }
 
     private static void calculateFrequencyAndQuantity(String route) {
@@ -46,17 +68,20 @@ public class Main {
                 count++;
             }
         }
-
-        if (count == 0) {
-            sizeToFreq.put(1, count);
-        } else {
-            double frequencyR = ((double) count / route.length() * 100);
-            int frequency = (int) frequencyR;
-            sizeToFreq.put(frequency, count);
-            if (count > maxQuantity) {
-                maxQuantity = count;
-                maxFrequency = frequency;
+        int frequency = 0;
+        synchronized (sizeToFreq) {
+            if (count == 0) {
+                sizeToFreq.put(1, count);
+            } else {
+                double frequencyR = ((double) count / route.length() * 100);
+                frequency = (int) frequencyR;
+                sizeToFreq.put(frequency, count);
+                sizeToFreq.notify();
             }
+        }
+        if (count > maxQuantity) {
+            maxQuantity = count;
+            maxFrequency = frequency;
         }
     }
 
